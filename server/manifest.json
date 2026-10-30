@@ -1,0 +1,132 @@
+{
+  "about": "Server code for Shopwatch: custom API endpoints and scheduled tasks. Each file is the handler body as written; the platform adds its own wrapper (sign-in check, helpers) when it runs. Environment variable values are never included in an export; only their names are listed.",
+  "exported_at": "2026-10-30T20:36:50Z",
+  "endpoints": [
+    {
+      "file": "endpoints/post-api-shopwatch-add-store.js",
+      "method": "POST",
+      "path": "/api/shopwatch/add-store",
+      "requires_auth": true,
+      "description": "Add a public HTTPS Shopify storefront to the signed-in owner’s private monitoring list."
+    },
+    {
+      "file": "endpoints/post-api-shopwatch-admin-add-store.js",
+      "method": "POST",
+      "path": "/api/shopwatch/admin-add-store",
+      "requires_auth": true,
+      "description": "Allow a verified app admin to add a monitored store for a client."
+    },
+    {
+      "file": "endpoints/patch-api-shopwatch-admin-fix-status.js",
+      "method": "PATCH",
+      "path": "/api/shopwatch/admin-fix-status",
+      "requires_auth": true,
+      "description": "Let a verified app admin update a fix request’s status."
+    },
+    {
+      "file": "endpoints/get-api-shopwatch-admin-overview.js",
+      "method": "GET",
+      "path": "/api/shopwatch/admin-overview",
+      "requires_auth": true,
+      "description": "Return a cross-store admin overview after verifying the caller’s signed app role."
+    },
+    {
+      "file": "endpoints/post-api-shopwatch-fix-request.js",
+      "method": "POST",
+      "path": "/api/shopwatch/fix-request",
+      "requires_auth": true,
+      "description": "Create a verified store owner’s fix request and notify the app administrator by transactional email."
+    },
+    {
+      "file": "endpoints/get-api-shopwatch-owner-data.js",
+      "method": "GET",
+      "path": "/api/shopwatch/owner-data",
+      "requires_auth": true,
+      "description": "Return this account’s monitoring data, including stores that the app admin added on its behalf."
+    },
+    {
+      "file": "endpoints/post-api-shopwatch-run-check.js",
+      "method": "POST",
+      "path": "/api/shopwatch/run-check",
+      "requires_auth": true,
+      "description": "Check the public Shopify store, shopper paths and safe temporary cart flow; refresh or compare the baseline, then email the verified owner when a problem appears."
+    },
+    {
+      "file": "endpoints/get-api-shopwatch-screenshot-token.js",
+      "method": "GET",
+      "path": "/api/shopwatch/screenshot/:token",
+      "requires_auth": false,
+      "description": "Serve one storefront screenshot using its unguessable per-image access token."
+    },
+    {
+      "file": "endpoints/patch-api-shopwatch-store-settings.js",
+      "method": "PATCH",
+      "path": "/api/shopwatch/store-settings",
+      "requires_auth": true,
+      "description": "Update a verified store owner’s alert email and ignored content terms."
+    }
+  ],
+  "scheduled_tasks": [
+    {
+      "file": "scheduled/shopwatch-daily-checks.js",
+      "name": "shopwatch-daily-checks",
+      "cron_pattern": "0 8 * * *",
+      "timezone": "UTC",
+      "enabled": true,
+      "description": "Run Shopwatch storefront checks once daily in bounded batches, save check history and alerts, and notify owners when a problem is found.",
+      "max_runs": 100000,
+      "max_runtime_ms": 300000,
+      "max_writes": 200
+    }
+  ],
+  "env_var_names": [
+    {
+      "name": "AI_PUBLIC_ACCESS",
+      "secret": false
+    },
+    {
+      "name": "SHOPWATCH_ADMIN_EMAIL",
+      "secret": true
+    },
+    {
+      "name": "VITE_APP_ID",
+      "secret": false
+    },
+    {
+      "name": "VITE_APP_NAME",
+      "secret": false
+    },
+    {
+      "name": "VITE_APP_PREVIEW_URL",
+      "secret": false
+    },
+    {
+      "name": "VITE_APP_URL",
+      "secret": false
+    },
+    {
+      "name": "VITE_APP_VISIBILITY",
+      "secret": false
+    },
+    {
+      "name": "VITE_ENVIRONMENT",
+      "secret": false
+    },
+    {
+      "name": "VITE_OAUTH_CLIENT_ID",
+      "secret": false
+    },
+    {
+      "name": "VITE_OAUTH_REDIRECT_URI",
+      "secret": false
+    },
+    {
+      "name": "VITE_OWNER_ID",
+      "secret": false
+    },
+    {
+      "name": "VITE_PLATFORM_URL",
+      "secret": false
+    }
+  ]
+}

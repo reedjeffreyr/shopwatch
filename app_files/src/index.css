@@ -1,0 +1,233 @@
+@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 150 14% 97%;
+    --foreground: 165 12% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 165 12% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 165 12% 15%;
+    --primary: 14 66% 49%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 160 8% 92%;
+    --secondary-foreground: 165 12% 20%;
+    --muted: 160 8% 94%;
+    --muted-foreground: 165 6% 43%;
+    --accent: 167 34% 33%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 68% 49%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 160 7% 86%;
+    --input: 160 7% 86%;
+    --ring: 14 66% 49%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 165 12% 15%;
+    --sidebar-primary: 14 66% 49%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 160 8% 92%;
+    --sidebar-accent-foreground: 165 12% 20%;
+    --sidebar-border: 160 7% 86%;
+    --sidebar-ring: 14 66% 49%;
+
+    --radius: 0.65rem;
+
+    --font-display: "Chivo", ui-serif, Georgia, serif;
+    --font-body: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-sans: var(--font-body);
+  }
+
+  .dark {
+    --background: 165 12% 9%;
+    --foreground: 150 10% 94%;
+    --card: 165 11% 12%;
+    --card-foreground: 150 10% 94%;
+    --popover: 165 11% 12%;
+    --popover-foreground: 150 10% 94%;
+    --primary: 14 70% 58%;
+    --primary-foreground: 165 12% 9%;
+    --secondary: 165 10% 18%;
+    --secondary-foreground: 150 10% 94%;
+    --muted: 165 10% 17%;
+    --muted-foreground: 160 7% 68%;
+    --accent: 167 33% 29%;
+    --accent-foreground: 150 10% 94%;
+    --destructive: 0 58% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 165 9% 23%;
+    --input: 165 9% 23%;
+    --ring: 14 70% 58%;
+    --sidebar-background: 165 10% 12%;
+    --sidebar-foreground: 150 10% 94%;
+    --sidebar-primary: 14 70% 58%;
+    --sidebar-primary-foreground: 165 12% 9%;
+    --sidebar-accent: 165 10% 18%;
+    --sidebar-accent-foreground: 150 10% 94%;
+    --sidebar-border: 165 9% 23%;
+    --sidebar-ring: 14 70% 58%;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  /* Interface-feel defaults — global polish baked into every generated app.
+     Source: "Details that make interfaces feel better" by Jakub Krehel.
+     These are universal/safe; per-component details (tabular-nums, concentric
+     radius, scale-on-press) are applied case-by-case in components. */
+  html {
+    /* Crisper, thinner text on macOS. No-op on other platforms — safe everywhere. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    /* Avoid orphaned words on short-to-medium text everywhere. */
+    text-wrap: pretty;
+  }
+
+  /* Even line distribution on short headings (balance only applies to ≤6 lines). */
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  /* Subtle 1px inset outline gives images consistent depth.
+     MUST be pure black (light) / pure white (dark) — never a tinted neutral,
+     which reads as dirt on the image edge. Scoped to <img> so SVG icons are
+     unaffected. `outline` + negative offset adds no layout size.
+
+     EXCEPT the app's brand mark. An outline traces the <img> BOX, not the
+     artwork, so on a logo — transparent margins, `object-contain`, sitting
+     directly on the header background — it draws a visible rectangle AROUND
+     the mark instead of edging a photo. That is why changing an app's logo
+     looked like the platform "adds a border around it" (Sanzone, 2026-08-27):
+     the default brand mark is a <span> badge, so nothing here applied until a
+     real <img> logo replaced it, and the border arrived with the logo. Depth
+     is a treatment for CONTENT images; the brand mark is chrome.
+
+     Exempting by [data-app-icon] rather than deleting the rule keeps the
+     photo/screenshot treatment this was added for (#2203) intact. The
+     selector stays inside @layer base, so any Tailwind utility (`ring-*`,
+     `outline-*`) still wins if a design genuinely wants an edge here. */
+  img:not([data-app-icon]) {
+    outline: 1px solid rgb(0 0 0 / 0.1);
+    outline-offset: -1px;
+  }
+
+  .dark img:not([data-app-icon]) {
+    outline-color: rgb(255 255 255 / 0.1);
+  }
+}
+
+/* Custom Scrollbar - thin elegant style */
+@layer base {
+  /* WebKit browsers (Chrome, Safari, Edge) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.4);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(156, 163, 175, 0.6);
+  }
+
+  /* Dark mode scrollbar */
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: rgba(107, 114, 128, 0.4);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(107, 114, 128, 0.6);
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+  }
+
+  .dark * {
+    scrollbar-color: rgba(107, 114, 128, 0.4) transparent;
+  }
+}
+
+/* Text gradient utilities.
+
+   ⚠️ Do NOT combine `.text-gradient` with a `background:`-SHORTHAND utility
+   (e.g. `.bg-warm { background: var(--gradient-warm) }`, or `.bg-primary` /
+   `.bg-hero` / `.bg-subtle` mapped to a `--gradient-*` token). The `background:`
+   shorthand RESETS `background-clip` back to border-box and, defined after
+   `.text-gradient` with equal specificity, wins by source order — so the
+   gradient fills the whole box and the text shows as a SOLID COLOR BLOCK.
+
+   Two safe paths:
+   1. `.text-gradient` PLUS a Tailwind `bg-gradient-to-r ...` class — Tailwind
+      emits a `background-image` LONGHAND, which does NOT reset background-clip.
+        <h1 className="bg-gradient-to-r from-primary to-accent text-gradient">…</h1>
+   2. A single combined `.text-gradient-*` class that bundles the gradient
+      (as `background-image` LONGHAND) + the clip props in ONE rule (below). */
+@layer utilities {
+  .text-gradient {
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    /* Using -webkit-text-fill-color instead of color: transparent
+       because Tailwind's base styles can override color but not text-fill-color */
+  }
+
+  /* Bulletproof combined gradient-text class: ONE class, no separate bg-* needed.
+     Uses the `background-image` LONGHAND so nothing resets background-clip.
+     Add more variants for custom `--gradient-*` tokens you define in :root, e.g.:
+       .text-gradient-warm {
+         background-image: var(--gradient-warm);
+         -webkit-background-clip: text; background-clip: text;
+         -webkit-text-fill-color: transparent; color: transparent;
+         display: inline-block;
+       }
+     (`display: inline-block` keeps the gradient from painting a full-width bar.) */
+  .text-gradient-primary {
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.6));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    display: inline-block;
+  }
+}
+
+/* OverSkill Remix Badge styles moved to src/lib/overskill-badge.css.
+   That file is platform-owned (BLOCKED_PATHS in ai_tool_service.rb) so the
+   AI can't accidentally drop it during theming/redesign work. The styles
+   are imported directly by src/App.tsx. */

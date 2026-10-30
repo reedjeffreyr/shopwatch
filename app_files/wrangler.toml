@@ -1,0 +1,54 @@
+# Workers for Platforms Configuration for OverSkill Apps
+# This app will be deployed to WFP dispatch namespaces, not as standalone worker
+
+# GH-2461: `name` is the Cloudflare WFP routing slot -> {{SCRIPT_NAME}}
+# (obfuscated_id.downcase unless a collision-remediation override is set).
+# {{APP_ID}} (= obfuscated_id) remains the app's data identity below
+# (VITE_APP_ID). For the ~all apps without an override the two are equal.
+name = "{{SCRIPT_NAME}}"
+main = "src/worker.js"
+compatibility_date = "2024-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# SPA routing support - ensures React Router works correctly
+[site]
+bucket = "./dist"
+
+# This is critical for React Router to work
+[[rules]]
+not_found_handling = "single-page-application"
+
+# Workers for Platforms configuration
+# Apps are deployed to dispatch namespaces via GitHub Actions
+
+[env.production]
+name = "{{SCRIPT_NAME}}"
+
+[env.production.vars]
+VITE_APP_ID = "{{APP_ID}}"
+VITE_OWNER_ID = "{{OWNER_ID}}"
+VITE_ENVIRONMENT = "production"
+
+[env.development]
+name = "preview-{{SCRIPT_NAME}}"
+
+[env.development.vars]
+VITE_APP_ID = "{{APP_ID}}"
+VITE_OWNER_ID = "{{OWNER_ID}}"
+VITE_ENVIRONMENT = "development"
+
+# Vite build configuration
+[build]
+command = "npm run build"
+cwd = "."
+watch_dir = ["src"]
+
+# Assets served from dist directory
+[assets]
+bucket = "./dist"
+include = ["**/*"]
+exclude = ["*.map"]
+
+# No routes needed - WFP dispatch worker handles routing
+# Apps accessed via: https://dispatch-worker.account.workers.dev/app/{{APP_ID}}
+# Or via custom domain: https://{{APP_ID}}.overskill.com

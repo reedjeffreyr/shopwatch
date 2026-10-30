@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!--
+    /*!
+      +================================================================+
+      |                                                                |
+      |                          \           /                         |
+      |                           \    |    /                          |
+      |                            \   |   /                           |
+      |                             \  |  /                            |
+      |                              \ | /                             |
+      |                               \|/                              |
+      |                ================*================               |
+      |                               /|\                              |
+      |                              / | \                             |
+      |                             /  |  \                            |
+      |                            /   |   \                           |
+      |                           /    |    \                          |
+      |                          /           \                         |
+      |                                                                |
+      |                    Built with OVERSKILL.DEV                    |
+      |                                                                |
+      +================================================================+
+    */
+    -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Shopwatch — Storefront monitoring</title>
+
+    <!-- OverSkill Meta Tags -->
+    <meta name="description" content="Monitor your Shopify storefront’s key pages, save a known-good starting point, and get clear alerts when something needs attention." />
+    <meta name="generator" content="OverSkill AI" />
+    <meta name="author" content="OverSkill" />
+
+    <!-- PWA: theme color used for browser chrome on Android Chrome and iOS Safari standalone mode -->
+    <meta name="theme-color" content="#0a0a0a" />
+
+    <!-- PWA: iOS Safari standalone mode + home-screen icon -->
+    <!-- iOS still uses these specific tags despite manifest being supported; they take precedence on iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- Status bar style is "default", NOT "black-translucent": on iOS 26 an installed
+         (home-screen) app with black-translucent gets a page 62pt SHORTER than the
+         screen, so position:fixed bottom bars float with a dead strip below them and
+         nothing can paint into that strip. "default" sizes the page to the real screen,
+         and iOS tints the status bar from the page/theme color (dark apps stay dark).
+         Measured on the iPhone 17 Pro simulator, iOS 26.5 (Oct 2026). -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Shopwatch" />
+    <!-- App favicon + apple-touch-icon: injected at DEPLOY time by
+         WorkerScriptAssembler#inject_runtime_context_into_index_html!, pointing at
+         THIS app's own icon (/a/:app_id/icon.png on the OverSkill platform, with a
+         ?v= cache-buster). Do NOT hardcode an OverSkill-branded icon here — it
+         ships as every generated app's favicon/home-screen icon on production +
+         custom domains (the pogarena.com wrong-favicon bug, Jul 2026). -->
+    <!-- vite-plugin-pwa auto-injects the web-app manifest link (rel="manifest") at build time -->
+    <!-- SW registration + post-deploy update flow: src/lib/pwa-update.ts
+         (vite.config.ts sets injectRegister: false — no injected register script) -->
+
+    <!--
+      Safe-area inset support for iOS notched devices when the PWA is
+      installed and runs in standalone mode (full-screen, no browser chrome).
+      Custom CSS variables are exposed so per-app components can opt into
+      respecting the safe-area (e.g., a fixed header / bottom nav). The body
+      padding only applies in standalone mode so browser-tab rendering is
+      unaffected.
+    -->
+    <style>
+      :root {
+        --safe-area-inset-top: env(safe-area-inset-top, 0px);
+        --safe-area-inset-right: env(safe-area-inset-right, 0px);
+        --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-area-inset-left: env(safe-area-inset-left, 0px);
+      }
+
+      /* Apply safe-area padding to body only when running as installed PWA.
+       * Browser-tab mode keeps the existing layout. Apps that need finer
+       * control (e.g., edge-to-edge content with a sticky header) can read
+       * --safe-area-inset-* directly in component styles. */
+      @media (display-mode: standalone) {
+        body {
+          padding-top: var(--safe-area-inset-top);
+          padding-right: var(--safe-area-inset-right);
+          padding-bottom: var(--safe-area-inset-bottom);
+          padding-left: var(--safe-area-inset-left);
+        }
+      }
+    </style>
+
+    <!-- Open Graph Tags -->
+    <meta property="og:title" content="OverSkill App" />
+    <meta property="og:description" content="Created with OverSkill - Turn your ideas into powerful apps with AI" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://overskill.app/og-image.png" />
+
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@overskill" />
+    <meta name="twitter:title" content="OverSkill App" />
+    <meta name="twitter:description" content="Created with OverSkill - Turn your ideas into powerful apps with AI" />
+    <meta name="twitter:image" content="https://overskill.app/og-image.png" />
+
+    <!-- Integry SDK: Loaded dynamically by src/lib/integry.ts ONLY when needed -->
+    <!-- This prevents unnecessary network requests and slow page loads -->
+    <!-- Apps without integrations: IntegryJS never loads (fast!) -->
+    <!-- Apps with integrations: IntegryJS loads on-demand (lazy!) -->
+
+    <!-- Note: overskill-error-bridge.js removed - was causing 404 and blocking page load -->
+    <!-- Error logging handled by Runtime SDK (iframe only) and fetch-interceptor.ts -->
+
+    <!--
+      OverSkill Platform SDK (Runtime)
+      Provides hot-updatable platform utilities:
+      - Console logging for AI debugging
+      - Error reporting with stack traces
+      - Analytics helpers
+
+      Loaded from CDN so fixes can be deployed without rebuilding apps.
+      Only active when viewed in OverSkill editor iframe.
+
+      Note: SDK reads config from window.APP_CONFIG (set by Worker) or import.meta.env
+      The data-app-id attribute provides appId even when APP_CONFIG isn't injected in E2B preview mode.
+    -->
+    <script src="https://sdk.overskill.com/v1/platform.js?v=1.0.9" crossorigin="anonymous" defer></script>
+
+    <!--
+      502 Cascade Prevention (Jan 2026)
+      Intercepts Vite's fallback reload while a preview sandbox is waking.
+      When Vite can't reconnect HMR, it triggers location.reload() which causes 502 cascade.
+      This script notifies the parent editor BEFORE reload, allowing iframe freeze.
+      MUST run before Vite's @vite/client module loads.
+    -->
+    <script>
+      (function() {
+        // Only run inside OverSkill editor iframe
+        if (window === window.top) return;
+
+        var isReloading = false;
+        var originalReload = window.location.reload.bind(window.location);
+
+        // Intercept location.reload() - Vite's primary reload method
+        window.location.reload = function(forceGet) {
+          if (isReloading) {
+            return originalReload(forceGet);
+          }
+          isReloading = true;
+
+          console.log('[OverSkill] 🔄 Intercepted reload request, notifying parent...');
+
+          // Notify parent to freeze iframe BEFORE we reload
+          try {
+            window.parent.postMessage({
+              type: 'overskill-iframe-reloading',
+              reason: 'vite_fallback_reload'
+            }, '*');
+          } catch (e) {
+            console.warn('[OverSkill] Failed to notify parent of reload:', e);
+          }
+
+          // Small delay to let parent freeze the iframe (stops 502 cascade)
+          // If parent freezes in time, this reload never happens
+          setTimeout(function() {
+            console.log('[OverSkill] Proceeding with reload after notification...');
+            originalReload(forceGet);
+          }, 150);
+        };
+
+        // Also intercept beforeunload to notify parent
+        window.addEventListener('beforeunload', function(e) {
+          try {
+            window.parent.postMessage({
+              type: 'overskill-iframe-unloading',
+              reason: 'page_navigation_or_reload'
+            }, '*');
+          } catch (err) { /* ignore */ }
+        });
+
+        console.log('[OverSkill] ✅ Reload interceptor installed');
+      })();
+    </script>
+
+    <!--
+      Vite Build Error Interceptor (Jan 2026)
+      Captures PostCSS, TypeScript, and other build errors from Vite's HMR system.
+      Sends errors to parent OverSkill editor for AI auto-fix.
+      MUST run before Vite's @vite/client to intercept error events.
+    -->
+    <script>
+      (function() {
+        // Only run inside OverSkill editor iframe
+        if (window === window.top) return;
+
+        var lastErrorSent = null;
+        var errorSendTimeout = null;
+
+        // Debounce error sending (same error within 2 seconds is ignored)
+        function sendBuildError(errorDetails) {
+          var errorKey = errorDetails.message + ':' + (errorDetails.file || '');
+          if (lastErrorSent === errorKey) {
+            return; // Already sent this error
+          }
+          lastErrorSent = errorKey;
+
+          // Clear previous timeout
+          if (errorSendTimeout) clearTimeout(errorSendTimeout);
+
+          // Reset after 2 seconds
+          errorSendTimeout = setTimeout(function() {
+            lastErrorSent = null;
+          }, 2000);
+
+          console.log('[OverSkill] 🔧 Build error detected, sending to AI for auto-fix...');
+
+          try {
+            var errorPayload = {
+              type: errorDetails.type || 'vite_build_error',
+              message: errorDetails.message,
+              file: errorDetails.file,
+              line: errorDetails.line,
+              column: errorDetails.column,
+              stack: errorDetails.stack,
+              plugin: errorDetails.plugin,
+              timestamp: Date.now()
+            };
+
+            // Forward enrichment data if present (Option A: Smart Error Enrichment)
+            if (errorDetails.preceding_errors) errorPayload.preceding_errors = errorDetails.preceding_errors;
+            if (errorDetails.enriched_file) errorPayload.enriched_file = errorDetails.enriched_file;
+            if (errorDetails.enriched_line) errorPayload.enriched_line = errorDetails.enriched_line;
+            if (errorDetails.enriched_column) errorPayload.enriched_column = errorDetails.enriched_column;
+            if (errorDetails.enriched_error_type) errorPayload.enriched_error_type = errorDetails.enriched_error_type;
+            if (errorDetails.enriched_detail) errorPayload.enriched_detail = errorDetails.enriched_detail;
+
+            window.parent.postMessage({
+              type: 'overskill-build-error',
+              error: errorPayload
+            }, '*');
+          } catch (e) {
+            console.warn('[OverSkill] Failed to send build error to parent:', e);
+          }
+        }
+
+        // Parse error from Vite error overlay HTML
+        function parseViteErrorOverlay(overlay) {
+          try {
+            var messageEl = overlay.querySelector('.message-body') || overlay.querySelector('.message');
+            var fileEl = overlay.querySelector('.file') || overlay.querySelector('.file-link');
+            var frameEl = overlay.querySelector('.frame');
+
+            var message = messageEl ? messageEl.textContent.trim() : '';
+            var fileInfo = fileEl ? fileEl.textContent.trim() : '';
+            var stack = frameEl ? frameEl.textContent.trim() : '';
+
+            // Parse file:line:column from fileInfo (e.g., "/app/src/index.css:146:14")
+            var fileParts = fileInfo.match(/([^:]+):(\d+):(\d+)/);
+            var file = fileParts ? fileParts[1] : fileInfo;
+            var line = fileParts ? parseInt(fileParts[2]) : null;
+            var column = fileParts ? parseInt(fileParts[3]) : null;
+
+            // Detect error type from message
+            var type = 'vite_build_error';
+            if (message.includes('[postcss]')) type = 'postcss_error';
+            else if (message.includes('TypeScript')) type = 'typescript_error';
+            else if (message.includes('SyntaxError')) type = 'syntax_error';
+
+            return {
+              type: type,
+              message: message,
+              file: file,
+              line: line,
+              column: column,
+              stack: stack
+            };
+          } catch (e) {
+            console.warn('[OverSkill] Error parsing Vite overlay:', e);
+            return null;
+          }
+        }
+
+        // Watch for Vite error overlay being added to DOM
+        var observer = new MutationObserver(function(mutations) {
+          mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+              if (node.nodeType !== 1) return; // Only element nodes
+
+              // Check if it's the Vite error overlay
+              if (node.tagName === 'VITE-ERROR-OVERLAY' ||
+                  (node.shadowRoot && node.tagName.includes('ERROR'))) {
+                console.log('[OverSkill] Vite error overlay detected');
+
+                // Wait for content to render
+                setTimeout(function() {
+                  var root = node.shadowRoot || node;
+                  var errorDetails = parseViteErrorOverlay(root);
+                  if (errorDetails && errorDetails.message) {
+                    // Feb 2026: Filter out transient WebSocket/connection errors
+                    // These occur when a sandbox wakes and Vite reconnects.
+                    // They auto-resolve and should NOT show the scary "Build Error" modal.
+                    var msg = errorDetails.message.toLowerCase();
+                    if (msg.includes('failed to connect to websocket') ||
+                        msg.includes('websocket closed without') ||
+                        msg.includes('websocket connection') ||
+                        msg.includes('hmr connection') ||
+                        msg.includes('server connection lost')) {
+                      console.log('[OverSkill] Suppressing transient WebSocket error (preview wake):', errorDetails.message);
+                      // Just dismiss the Vite overlay silently - WebSocket will auto-reconnect
+                      setTimeout(function() { dismissViteOverlay(); }, 200);
+                      return;
+                    }
+
+                    // Send error to parent for custom modal display
+                    sendBuildError(errorDetails);
+
+                    // Feb 2026: Immediately dismiss Vite's overlay so user sees our custom modal
+                    // Don't wait for HMR success - show unified error experience now
+                    setTimeout(function() {
+                      dismissViteOverlay();
+                      console.log('[OverSkill] 🔧 Dismissed Vite overlay - showing custom modal');
+                    }, 200);
+                  }
+                }, 100);
+              }
+            });
+          });
+        });
+
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true
+        });
+
+        // Also listen for Vite's custom error events (if available)
+        window.addEventListener('vite:error', function(event) {
+          var err = event.detail || event.error || {};
+          var errMsg = (err.message || String(err)).toLowerCase();
+
+          // Skip transient WebSocket errors during preview wake/reconnection.
+          if (errMsg.includes('failed to connect to websocket') ||
+              errMsg.includes('websocket closed without') ||
+              errMsg.includes('server connection lost')) {
+            console.log('[OverSkill] Suppressing transient vite:error (preview wake):', err.message);
+            return;
+          }
+
+          sendBuildError({
+            type: 'vite_hmr_error',
+            message: err.message || String(err),
+            file: err.file || err.loc?.file,
+            line: err.line || err.loc?.line,
+            column: err.column || err.loc?.column,
+            stack: err.stack,
+            plugin: err.plugin
+          });
+        });
+
+        // === ERROR BUFFER for Smart Error Enrichment (Feb 2026) ===
+        // Stores recent console.error messages so that when a vague "[vite] Failed to reload"
+        // error arrives, we can include the REAL specific error that preceded it.
+        var errorBuffer = [];
+        var ERROR_BUFFER_MAX = 10;
+        var ERROR_BUFFER_TTL = 5000; // 5 seconds
+
+        function addToErrorBuffer(msg) {
+          var now = Date.now();
+          errorBuffer.push({ message: msg, timestamp: now });
+          // Trim old + overflow
+          errorBuffer = errorBuffer.filter(function(e) { return (now - e.timestamp) < ERROR_BUFFER_TTL; });
+          if (errorBuffer.length > ERROR_BUFFER_MAX) errorBuffer = errorBuffer.slice(-ERROR_BUFFER_MAX);
+        }
+
+        function getPrecedingErrors(currentMsg) {
+          var now = Date.now();
+          return errorBuffer
+            .filter(function(e) { return (now - e.timestamp) < ERROR_BUFFER_TTL && e.message !== currentMsg; })
+            .map(function(e) { return e.message; });
+        }
+
+        // Parse file:line:column from a list of error messages
+        function parseEnrichedDetails(messages) {
+          for (var i = 0; i < messages.length; i++) {
+            var m = messages[i];
+            // PostCSS: /path/to/file.css:146:14 or file.css:146:14
+            var cssMatch = m.match(/([^\s]+\.(?:css|scss|sass)):(\d+):(\d+)/);
+            if (cssMatch) return { file: cssMatch[1], line: parseInt(cssMatch[2],10), column: parseInt(cssMatch[3],10), errorType: 'postcss' };
+            // Vite import: Failed to resolve import "X" from "Y"
+            var importMatch = m.match(/Failed to resolve import ["']([^"']+)["'] from ["']([^"']+)["']/);
+            if (importMatch) return { file: importMatch[2], line: null, column: null, errorType: 'import', detail: importMatch[1] };
+            // TypeScript: (line,col) pattern
+            var tsMatch = m.match(/([^\s]+\.tsx?)\((\d+),(\d+)\)/);
+            if (tsMatch) return { file: tsMatch[1], line: parseInt(tsMatch[2],10), column: parseInt(tsMatch[3],10), errorType: 'typescript' };
+            // Generic file:line:col
+            var genMatch = m.match(/([^\s]+\.\w+):(\d+):(\d+)/);
+            if (genMatch) return { file: genMatch[1], line: parseInt(genMatch[2],10), column: parseInt(genMatch[3],10), errorType: 'generic' };
+          }
+          return null;
+        }
+
+        // === HMR RELOAD DIFFERENTIATION (Feb 2026) ===
+        // Track reload attempts per file to avoid infinite loops
+        var hmrReloadAttempts = {};
+        var HMR_RELOAD_COOLDOWN = 30000; // 30 seconds
+
+        function isHmrReloadFailure(message) {
+          return message.includes('[vite]') && message.includes('Failed to reload');
+        }
+
+        // Extract file path from "[vite] Failed to reload /src/index.css" messages
+        function extractFileFromHmrError(message) {
+          var match = message.match(/Failed to reload\s+(\S+)/);
+          return match ? match[1] : 'unknown';
+        }
+
+        // Intercept console.error for build-related errors (Vite logs errors there)
+        var originalConsoleError = console.error;
+        console.error = function() {
+          originalConsoleError.apply(console, arguments);
+
+          var message = Array.prototype.slice.call(arguments).join(' ');
+
+          // Buffer ALL errors for enrichment
+          addToErrorBuffer(message);
+
+          // Check if it's a build error
+          if (message.includes('[vite]') ||
+              message.includes('[postcss]') ||
+              message.includes('[plugin:') ||
+              message.includes('Internal server error')) {
+
+            // === SKIP transient WebSocket/infrastructure errors (Feb 2026) ===
+            // These occur during preview wake and auto-resolve — not code bugs.
+            var msgLower = message.toLowerCase();
+            if (msgLower.includes('failed to connect to websocket') ||
+                msgLower.includes('websocket closed without') ||
+                msgLower.includes('websocket connection') ||
+                msgLower.includes('server connection lost') ||
+                msgLower.includes('hmr connection')) {
+              console.log('[OverSkill] Suppressing transient WebSocket error in console.error path');
+              return;
+            }
+
+            // === Option F: HMR reload failures get page reload first ===
+            if (isHmrReloadFailure(message)) {
+              var failedFile = extractFileFromHmrError(message);
+              var lastAttempt = hmrReloadAttempts[failedFile] || 0;
+              var now = Date.now();
+
+              if ((now - lastAttempt) > HMR_RELOAD_COOLDOWN) {
+                // First time seeing this file fail (or cooldown expired) - try page reload
+                console.log('[OverSkill] HMR reload failure for ' + failedFile + ' - trying page reload first');
+                hmrReloadAttempts[failedFile] = now;
+                setTimeout(function() { window.location.reload(); }, 500);
+                return; // Don't send to auto-fix yet
+              }
+              // Already reloaded recently and error persists - fall through to send to auto-fix
+              console.log('[OverSkill] HMR reload failure persists for ' + failedFile + ' after page reload - sending to auto-fix');
+            }
+
+            // === Option A: Smart Error Enrichment ===
+            var errorData = {
+              type: message.includes('[postcss]') ? 'postcss_error' : 'vite_console_error',
+              message: message
+            };
+
+            // For vague errors, enrich with preceding error context
+            if (message.includes('Failed to reload') || message.includes('could be due to syntax errors') || message.includes('Internal server error')) {
+              var preceding = getPrecedingErrors(message);
+              if (preceding.length > 0) {
+                errorData.preceding_errors = preceding;
+                var enriched = parseEnrichedDetails(preceding);
+                if (enriched) {
+                  errorData.enriched_file = enriched.file;
+                  if (enriched.line) errorData.enriched_line = enriched.line;
+                  if (enriched.column) errorData.enriched_column = enriched.column;
+                  errorData.enriched_error_type = enriched.errorType;
+                  if (enriched.detail) errorData.enriched_detail = enriched.detail;
+                }
+              }
+            }
+
+            sendBuildError(errorData);
+          }
+        };
+
+        // Feb 2026: Listen for parent frame requesting overlay dismiss (after AI auto-fix)
+        window.addEventListener('message', function(event) {
+          if (event.data && event.data.type === 'overskill-dismiss-overlay') {
+            console.log('[OverSkill] 🔧 Parent requested overlay dismiss after auto-fix');
+            dismissViteOverlay();
+          }
+        });
+
+        // Function to dismiss Vite error overlay by simulating Escape key
+        function dismissViteOverlay() {
+          // Vite's error overlay listens for Escape key
+          document.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Escape',
+            code: 'Escape',
+            keyCode: 27,
+            which: 27,
+            bubbles: true
+          }));
+
+          // Also try clicking outside the overlay (backup method)
+          var overlay = document.querySelector('vite-error-overlay');
+          if (overlay && overlay.shadowRoot) {
+            var backdrop = overlay.shadowRoot.querySelector('.backdrop');
+            if (backdrop) backdrop.click();
+          }
+
+          console.log('[OverSkill] ✅ Attempted to dismiss Vite error overlay');
+        }
+
+        // Track if we had an error (for HMR success detection)
+        var hadBuildError = false;
+
+        // Hook into sendBuildError to track error state
+        var originalSendBuildError = sendBuildError;
+        sendBuildError = function(errorDetails) {
+          hadBuildError = true;
+          originalSendBuildError(errorDetails);
+        };
+
+        console.log('[OverSkill] ✅ Build error interceptor installed');
+      })();
+    </script>
+
+    <!--
+      HMR Success Auto-Dismiss + HMR Ready Signal (Feb 2026, updated Apr 2026)
+      Two responsibilities:
+       1. When Vite HMR successfully applies an update after an error, dismiss the overlay.
+       2. Tell the OverSkill editor "Vite is connected" so its build-error gate releases.
+
+      WHY THE GATE MATTERS (Apr 2026 fix):
+        The editor's error_detector_controller and error_popup_controller suppress
+        ALL incoming `overskill-build-error` events for the first 60 seconds (until
+        they receive a `{type: 'hmr_ready'}` postMessage). Previously NOTHING in the
+        codebase emitted that signal, so legitimate compile errors during the boot
+        window (e.g. TS error in main.tsx → Vite 500) were silently dropped.
+
+        This script emits hmr_ready when Vite's WebSocket connects, which releases
+        the gate immediately. The error overlay that appears for the broken
+        main.tsx then flows straight through to the AI auto-fix UI.
+    -->
+    <script type="module">
+      // Only run inside OverSkill editor iframe
+      if (window !== window.top && import.meta.hot) {
+        var hmrReadySent = false;
+        var sendHmrReady = function (source) {
+          if (hmrReadySent) return;
+          hmrReadySent = true;
+          try {
+            window.parent.postMessage({ type: 'hmr_ready', source: source }, '*');
+            console.log('[OverSkill] 📡 hmr_ready sent to editor (source: ' + source + ')');
+          } catch (e) {
+            console.warn('[OverSkill] Failed to send hmr_ready:', e);
+          }
+        };
+
+        // Primary signal: Vite explicitly tells us when the WS connects.
+        import.meta.hot.on('vite:ws:connect', function () {
+          sendHmrReady('vite:ws:connect');
+        });
+
+        // Fallback: ANY HMR event (update, prune, error) implies Vite is connected.
+        // Catches edge cases where vite:ws:connect was missed (e.g. race where the
+        // event fired before we registered).
+        ['vite:beforeUpdate', 'vite:afterUpdate', 'vite:beforePrune', 'vite:error'].forEach(
+          function (evt) {
+            import.meta.hot.on(evt, function () {
+              sendHmrReady(evt);
+            });
+          }
+        );
+
+        // Belt-and-suspenders: if this module loaded at all, Vite is at least serving
+        // modules, which means the preview is alive. Emit after a short delay to
+        // give the WS event a chance to fire first (so the source field is accurate).
+        setTimeout(function () {
+          sendHmrReady('module-loaded');
+        }, 1500);
+
+        // Existing behavior: dismiss Vite error overlay on successful HMR update.
+        import.meta.hot.on('vite:afterUpdate', () => {
+          console.log('[OverSkill] HMR update successful, dismissing any error overlay');
+
+          // Dismiss Vite error overlay
+          document.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Escape',
+            code: 'Escape',
+            keyCode: 27,
+            which: 27,
+            bubbles: true
+          }));
+
+          // Notify parent that HMR succeeded (for indicator update)
+          window.parent.postMessage({
+            type: 'overskill-hmr-success',
+            timestamp: Date.now()
+          }, '*');
+        });
+
+        console.log('[OverSkill] ✅ HMR success auto-dismiss + ready signal installed');
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+
+    <script id="overskill-preview-readiness">
+      (function() {
+        if (window.parent === window || window.__overskillPreviewReadinessInstalled) return;
+        window.__overskillPreviewReadinessInstalled = true;
+
+        var sent = false;
+        var observer = null;
+
+        function rootHasRenderedContent() {
+          var root = document.getElementById('root');
+          return !!(root && (root.children.length > 0 || root.textContent.trim().length > 0));
+        }
+
+        function postReady(reason, options) {
+          var repeat = options && options.repeat;
+          if (sent && !repeat) return;
+          sent = true;
+          if (observer && !repeat) observer.disconnect();
+
+          try {
+            window.parent.postMessage({
+              type: 'overskill-preview-ready',
+              source: 'preview-readiness',
+              reason: reason,
+              href: window.location.href,
+              timestamp: Date.now()
+            }, '*');
+          } catch (e) {}
+        }
+
+        function scheduleReady(reason) {
+          if (sent) return;
+          setTimeout(function() {
+            if (rootHasRenderedContent()) postReady(reason);
+          }, 0);
+        }
+
+        function check(reason) {
+          if (rootHasRenderedContent()) scheduleReady(reason);
+        }
+
+        window.addEventListener('message', function(event) {
+          if (!event.data || event.data.type !== 'overskill-preview-ready-request') return;
+          if (!rootHasRenderedContent()) return;
+
+          postReady('request_' + (event.data.reason || 'unknown'), { repeat: true });
+        });
+
+        function watchRoot() {
+          check('initial');
+          var root = document.getElementById('root') || document.body;
+          if (!root || !window.MutationObserver) return;
+
+          observer = new MutationObserver(function() {
+            check('mutation');
+          });
+          observer.observe(root, { childList: true, subtree: true });
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', watchRoot, { once: true });
+        } else {
+          watchRoot();
+        }
+
+        window.addEventListener('load', function() {
+          check('load');
+          setTimeout(function() { check('load_settle'); }, 250);
+        });
+        setTimeout(function() { check('startup_1500ms'); }, 1500);
+        setTimeout(function() { check('startup_3000ms'); }, 3000);
+      })();
+    </script>
+
+    <!-- OverSkill Edit Mode Listener -->
+    <!-- REQUIRED: Enables visual editing in the Overskill editor -->
+    <!-- SECURITY: accepts one data-only command from an exact editor origin and never runs code from a message -->
+    <script>
+      (function() {
+        // Only active when framed. Viewed directly, the app ignores edit mode.
+        if (window.parent === window) {
+          return;
+        }
+
+        // Exact editor origins only. Never a wildcard: other hosts on these
+        // domains serve content the editor does not control.
+        var EDITOR_ORIGINS = [
+          'https://www.overskill.com',
+          'https://overskill.com',
+          'https://staging.overskill.com',
+          'https://dev.overskill.com',
+          'https://www.clickfunnels.ai',
+          'https://clickfunnels.ai'
+        ];
+        // The highlighter is a fixed platform script. These editors share the
+        // www.overskill.com build, which serves it without a visitor gate.
+        var SCRIPT_ORIGINS = {
+          'https://overskill.com': 'https://www.overskill.com',
+          'https://www.clickfunnels.ai': 'https://www.overskill.com',
+          'https://clickfunnels.ai': 'https://www.overskill.com'
+        };
+        var SCRIPT_PATH = /^\/assets\/overskill_edit_mode(?:\.debug)?(?:-[a-f0-9]{8,64})?\.js$/;
+        var TOKEN = /^[A-Za-z0-9_.:-]{1,128}$/;
+        var pending = null;
+        var loading = false;
+
+        function trustedOrigin(origin) {
+          if (EDITOR_ORIGINS.indexOf(origin) !== -1) return true;
+          // Local platform development: trusted only when this app is itself
+          // served from the developer's machine.
+          var local = /^(?:localhost|127\.0\.0\.1)$/;
+          return local.test(window.location.hostname) &&
+            /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d{1,5})?$/.test(origin);
+        }
+
+        function loaded() {
+          var editMode = window.__overskillEditMode;
+          return !!editMode && typeof editMode.install === 'function';
+        }
+
+        function install() {
+          if (!pending || !loaded()) return;
+          var config = pending;
+          pending = null;
+          window.__overskillEditMode.install(config);
+        }
+
+        window.addEventListener('message', function(event) {
+          var data = event.data;
+          if (event.source !== window.parent || !data || typeof data !== 'object') return;
+          if (data.type === 'remove-highlighter') {
+            // The editor gave up before the script arrived (slow load): drop
+            // the queued enable so a late load does not turn edit mode on.
+            if (trustedOrigin(event.origin)) pending = null;
+            return;
+          }
+          if (data.type !== 'overskill-edit-mode-enable') return;
+          if (!trustedOrigin(event.origin)) return;
+          if (typeof data.requestId !== 'string' || !TOKEN.test(data.requestId)) return;
+          if (data.sessionId != null && (typeof data.sessionId !== 'string' || !TOKEN.test(data.sessionId))) return;
+          if (typeof data.scriptPath !== 'string' || !SCRIPT_PATH.test(data.scriptPath)) return;
+
+          var options = data.options && typeof data.options === 'object' ? data.options : {};
+          pending = {
+            editorOrigin: event.origin,
+            requestId: data.requestId,
+            sessionId: data.sessionId == null ? null : data.sessionId,
+            options: { dragDropEnabled: options.dragDropEnabled === true }
+          };
+          if (loaded()) return install();
+          if (loading) return;
+
+          loading = true;
+          var script = document.createElement('script');
+          script.src = (SCRIPT_ORIGINS[event.origin] || event.origin) + data.scriptPath;
+          script.async = true;
+          script.onload = function() { loading = false; install(); };
+          script.onerror = function() { loading = false; console.error('[OverSkill EditMode] Could not load the visual editor'); };
+          (document.head || document.documentElement).appendChild(script);
+        });
+      })();
+    </script>
+  </body>
+</html>
